@@ -10,8 +10,8 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 Cu.import("chrome://marionette/content/assert.js");
 const {
-  error,
   InvalidCookieDomainError,
+  pprint,
 } = Cu.import("chrome://marionette/content/error.js", {});
 
 this.EXPORTED_SYMBOLS = ["cookie"];
@@ -37,8 +37,9 @@ this.cookie = {
  *
  * @param {Object.<string, (number|boolean|string)>} json
  *     Cookie to be deserialised.  <var>name</var> and <var>value</var>
- *     are required fields which must be strings.  The <var>path</var>
- *     field is optional, but must be a string if provided.
+ *     are required fields which must be strings.  The <var>path</var> and
+ *     <var>domain</var> fields are optional, but must be a string if
+ *     provided.
  *     The <var>secure</var>, <var>httpOnly</var>, and
  *     <var>session</var>fields are similarly optional, but must be
  *     booleans.  Likewise, the <var>expiry</var> field is optional but
@@ -53,11 +54,19 @@ this.cookie = {
 cookie.fromJSON = function(json) {
   let newCookie = {};
 
-  assert.object(json, error.pprint`Expected cookie object, got ${json}`);
+  assert.object(json, pprint`Expected cookie object, got ${json}`);
 
   newCookie.name = assert.string(json.name, "Cookie name must be string");
   newCookie.value = assert.string(json.value, "Cookie value must be string");
 
+  if (typeof json.domain != "undefined") {
+    let domain = assert.string(json.domain, "Cookie domain must be string");
+    if (domain.substring(0, 1) !== ".") {
+      // make sure that this is stored as a domain cookie
+      domain = "." + domain;
+    }
+    newCookie.domain = domain;
+  }
   if (typeof json.path != "undefined") {
     newCookie.path = assert.string(json.path, "Cookie path must be string");
   }
@@ -110,10 +119,11 @@ cookie.add = function(newCookie, {restrictToHost = null} = {}) {
   }
 
   if (restrictToHost) {
-    if (newCookie.domain !== restrictToHost) {
+    if (!restrictToHost.endsWith(newCookie.domain) &&
+        ("." + restrictToHost) !== newCookie.domain) {
       throw new InvalidCookieDomainError(
           `Cookies may only be set ` +
-          ` for the current domain (${restrictToHost})`);
+          `for the current domain (${restrictToHost})`);
     }
   }
 
@@ -164,7 +174,7 @@ cookie.remove = function(toDelete) {
  * @return {Iterable.<Cookie>}
  *     Iterator.
  */
-cookie.iter = function*(host, currentPath = "/") {
+cookie.iter = function* (host, currentPath = "/") {
   assert.string(host, "host must be string");
   assert.string(currentPath, "currentPath must be string");
 

@@ -183,7 +183,6 @@ LayerManagerMLGPU::GetTextureFactoryIdentifier()
   if (mDevice) {
     ident = mDevice->GetTextureFactoryIdentifier();
   }
-  ident.mSupportsBackdropCopyForComponentAlpha = SupportsBackdropCopyForComponentAlpha();
   ident.mUsingAdvancedLayers = true;
   return ident;
 }
@@ -463,7 +462,9 @@ LayerManagerMLGPU::ComputeInvalidRegion()
 
   nsIntRegion changed;
   if (mClonedLayerTreeProperties) {
-    changed = mClonedLayerTreeProperties->ComputeDifferences(mRoot, nullptr);
+    if (!mClonedLayerTreeProperties->ComputeDifferences(mRoot, changed, nullptr)) {
+      changed = mRenderBounds;
+    }
   } else {
     changed = mRenderBounds;
   }
@@ -521,12 +522,6 @@ bool
 LayerManagerMLGPU::BlendingRequiresIntermediateSurface()
 {
   return true;
-}
-
-bool
-LayerManagerMLGPU::SupportsBackdropCopyForComponentAlpha()
-{
-  return false;
 }
 
 void

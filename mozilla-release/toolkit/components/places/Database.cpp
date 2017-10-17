@@ -222,7 +222,7 @@ SetJournalMode(nsCOMPtr<mozIStorageConnection>& aDBConn,
 nsresult
 CreateRoot(nsCOMPtr<mozIStorageConnection>& aDBConn,
            const nsCString& aRootName, const nsCString& aGuid,
-           const nsXPIDLString& titleString)
+           const nsAString& titleString)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -1111,7 +1111,15 @@ Database::InitSchema(bool* aDatabaseMigrated)
         rv = MigrateV38Up();
         NS_ENSURE_SUCCESS(rv, rv);
       }
+
       // Firefox 56 uses schema version 38.
+
+      if (currentSchemaVersion < 39) {
+        rv = MigrateV39Up();
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      // Firefox 57 uses schema version 39.
 
       // Schema Upgrades must add migration code here.
 
@@ -1168,6 +1176,8 @@ Database::InitSchema(bool* aDatabaseMigrated)
     rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_PARENTPOSITION);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_PLACELASTMODIFIED);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_DATEADDED);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_GUID);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1226,36 +1236,32 @@ Database::CreateBookmarkRoots()
   nsresult rv = bundleService->CreateBundle(PLACES_BUNDLE, getter_AddRefs(bundle));
   if (NS_FAILED(rv)) return rv;
 
-  nsXPIDLString rootTitle;
+  nsAutoString rootTitle;
   // The first root's title is an empty string.
   rv = CreateRoot(mMainConn, NS_LITERAL_CSTRING("places"),
                   NS_LITERAL_CSTRING("root________"), rootTitle);
   if (NS_FAILED(rv)) return rv;
 
   // Fetch the internationalized folder name from the string bundle.
-  rv = bundle->GetStringFromName("BookmarksMenuFolderTitle",
-                                 getter_Copies(rootTitle));
+  rv = bundle->GetStringFromName("BookmarksMenuFolderTitle", rootTitle);
   if (NS_FAILED(rv)) return rv;
   rv = CreateRoot(mMainConn, NS_LITERAL_CSTRING("menu"),
                   NS_LITERAL_CSTRING("menu________"), rootTitle);
   if (NS_FAILED(rv)) return rv;
 
-  rv = bundle->GetStringFromName("BookmarksToolbarFolderTitle",
-                                 getter_Copies(rootTitle));
+  rv = bundle->GetStringFromName("BookmarksToolbarFolderTitle", rootTitle);
   if (NS_FAILED(rv)) return rv;
   rv = CreateRoot(mMainConn, NS_LITERAL_CSTRING("toolbar"),
                   NS_LITERAL_CSTRING("toolbar_____"), rootTitle);
   if (NS_FAILED(rv)) return rv;
 
-  rv = bundle->GetStringFromName("TagsFolderTitle",
-                                 getter_Copies(rootTitle));
+  rv = bundle->GetStringFromName("TagsFolderTitle", rootTitle);
   if (NS_FAILED(rv)) return rv;
   rv = CreateRoot(mMainConn, NS_LITERAL_CSTRING("tags"),
                   NS_LITERAL_CSTRING("tags________"), rootTitle);
   if (NS_FAILED(rv)) return rv;
 
-  rv = bundle->GetStringFromName("OtherBookmarksFolderTitle",
-                                 getter_Copies(rootTitle));
+  rv = bundle->GetStringFromName("OtherBookmarksFolderTitle", rootTitle);
   if (NS_FAILED(rv)) return rv;
   rv = CreateRoot(mMainConn, NS_LITERAL_CSTRING("unfiled"),
                   NS_LITERAL_CSTRING("unfiled_____"), rootTitle);
@@ -1407,9 +1413,8 @@ Database::UpdateBookmarkRootTitles()
                                  };
 
   for (uint32_t i = 0; i < ArrayLength(rootGuids); ++i) {
-    nsXPIDLString title;
-    rv = bundle->GetStringFromName(titleStringIDs[i],
-                                   getter_Copies(title));
+    nsAutoString title;
+    rv = bundle->GetStringFromName(titleStringIDs[i], title);
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<mozIStorageBindingParams> params;
@@ -2325,6 +2330,17 @@ Database::MigrateV38Up()
     ));
     NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  return NS_OK;
+}
+
+nsresult
+Database::MigrateV39Up() {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  // Create an index on dateAdded.
+  nsresult rv = mMainConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_DATEADDED);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }

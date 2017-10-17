@@ -8,6 +8,7 @@
 
 #include "LayerManagerMLGPU.h"
 #include "mozilla/layers/ContentHost.h"
+#include "MLGDeviceTypes.h"
 #include "nsRegionFwd.h"
 #include <functional>
 
@@ -46,16 +47,22 @@ public:
     MOZ_ASSERT(HasComponentAlpha());
     return mTextureOnWhite;
   }
-
   ContentHostTexture* GetContentHost() const {
     return mHost;
   }
-
-  nsIntRegion GetRenderRegion() const {
-    nsIntRegion region = GetShadowVisibleRegion().ToUnknownRegion();
-    region.AndWith(gfx::IntRect(region.GetBounds().TopLeft(), mTexture->GetSize()));
-    return region;
+  SamplerMode GetSamplerMode() {
+    // Note that when resamping, we must break the texture coordinates into
+    // no-repeat rects. When we have simple integer translations we can
+    // simply wrap around the edge of the buffer texture.
+    return MayResample()
+           ? SamplerMode::LinearClamp
+           : SamplerMode::LinearRepeat;
   }
+
+  // This can return a different region than GetShadowVisibleRegion or
+  // GetLocalVisibleRegion, since we make sure to clamp it to the
+  // texture size and account for resampling.
+  nsIntRegion GetRenderRegion();
 
   MOZ_LAYER_DECL_NAME("PaintedLayerMLGPU", TYPE_PAINTED)
 

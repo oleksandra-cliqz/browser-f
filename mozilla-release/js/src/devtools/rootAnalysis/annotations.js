@@ -67,6 +67,8 @@ var ignoreClasses = {
 // Ignore calls through TYPE.FIELD, where TYPE is the class or struct name containing
 // a function pointer field named FIELD.
 var ignoreCallees = {
+    "js::Class.trace" : true,
+    "js::Class.finalize" : true,
     "js::ClassOps.trace" : true,
     "js::ClassOps.finalize" : true,
     "JSRuntime.destroyPrincipals" : true,
@@ -170,6 +172,7 @@ var ignoreFunctions = {
 
     // Bug 1056410 - devirtualization prevents the standard nsISupports::Release heuristic from working
     "uint32 nsXPConnect::Release()" : true,
+    "uint32 nsIAtom::Release()" : true,
 
     // Allocation API
     "malloc": true,
@@ -238,12 +241,9 @@ var ignoreFunctions = {
 };
 
 function extraGCFunctions() {
-    return ["ffi_call"];
-}
-
-function extraGCFunctions() {
     return ["ffi_call"].filter(f => f in readableNames);
 }
+
 function isProtobuf(name)
 {
     return name.match(/\bgoogle::protobuf\b/) ||
